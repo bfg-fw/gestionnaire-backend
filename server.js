@@ -8,11 +8,10 @@ const app = express();
 const port = process.env.PORT || 3000; // Utilise le port défini dans .env ou 3000 par défaut
 
 // --- Configuration CORS ---
-// IMPORTANT : Remplacez 'http://localhost:8080' par l'URL de votre site GitHub Pages quand il sera déployé !
-// Par exemple: 'https://votre_pseudo.github.io/votre_repo/'
-// Pour les tests locaux, vous pouvez laisser 'http://localhost:8080' ou '*' (moins sécurisé)
+// IMPORTANT : Remplacez 'https://tes-1-w5nn.onrender.com' par l'URL exacte de votre frontend déployé sur Render.com
+// Par exemple: 'https://votre_frontend_service.onrender.com'
 const corsOptions = {
-  origin: 'https://tes-1-w5nn.onrender.com' // À modifier pour votre URL GitHub Pages déployée (e.g., 'https://bfg-fw.github.io/tes/')
+  origin: 'https://tes-1-w5nn.onrender.com' // À modifier si l'URL de votre frontend est différente
 };
 app.use(cors(corsOptions));
 
@@ -22,7 +21,7 @@ app.use(express.json()); // Permet à Express de lire le JSON envoyé dans les r
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
-    rejectUnauthorized: false // Important pour Render.com pour éviter les problèmes de certificat SSL en développement/test
+    rejectUnauthorized: false // Important pour Render.com en développement/test
   }
 });
 
@@ -50,6 +49,7 @@ async function setupDatabaseTables() {
 
     // Table pour les données de chaque utilisateur (participants et équipes)
     // JSONB est un type de données PostgreSQL qui stocke le JSON efficacement
+    // Note: Pour cette version sans authentification, 'username' sera 'global_user'
     await pool.query(`
       CREATE TABLE IF NOT EXISTS user_data (
         username VARCHAR(255) PRIMARY KEY REFERENCES users(username) ON DELETE CASCADE,
@@ -70,6 +70,8 @@ setupDatabaseTables();
 // --- Routes API ---
 
 // API pour l'inscription d'un nouvel utilisateur
+// Note: Ces routes sont présentes dans le backend pour compatibilité avec le code frontend
+// Mais sans l'UI d'authentification, elles ne seront pas appelées directement par l'application
 app.post('/api/register', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
@@ -110,17 +112,15 @@ app.post('/api/login', async (req, res) => {
 });
 
 // API pour sauvegarder les données (personnes et équipes) d'un utilisateur
-// C'est cette route que votre frontend appellera pour sauvegarder
-// ... (début de la route)
 app.post('/api/saveData', async (req, res) => {
   const { username, personnes, equipes } = req.body;
 
-  // --- AJOUTEZ CES LIGNES POUR VÉRIFIER CE QUE LE BACKEND REÇOIT ---
-  console.log('Backend a reçu username:', username);
-  console.log('Backend a reçu personnes (type):', typeof personnes);
-  console.log('Backend a reçu personnes (valeur):', JSON.stringify(personnes, null, 2)); // Stringify pour voir le contenu
-  console.log('Backend a reçu equipes (type):', typeof equipes);
-  console.log('Backend a reçu equipes (valeur):', JSON.stringify(equipes, null, 2)); // Stringify pour voir le contenu
+  // --- LIGNES DE VÉRIFICATION QUE NOUS AVONS AJOUTÉES POUR LE DÉBOGAGE ---
+  console.log(`Backend a reçu username: ${username}`);
+  console.log(`Backend a reçu personnes (type): ${typeof personnes}`);
+  console.log('Backend a reçu personnes (valeur):', JSON.stringify(personnes, null, 2));
+  console.log(`Backend a reçu equipes (type): ${typeof equipes}`);
+  console.log('Backend a reçu equipes (valeur):', JSON.stringify(equipes, null, 2));
   // --- FIN DES LIGNES DE VÉRIFICATION ---
 
   if (!username || personnes === undefined || equipes === undefined) {
@@ -128,22 +128,12 @@ app.post('/api/saveData', async (req, res) => {
   }
 
   try {
+    // Créez l'utilisateur 'global_user' s'il n'existe pas, car il n'y a pas d'inscription via le frontend
     await pool.query(
-      `INSERT INTO user_data (username, personnes, equipes)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (username) DO UPDATE SET personnes = $2, equipes = $3;`,
-      [username, personnes, equipes]
+        `INSERT INTO users (username, password) VALUES ($1, $2) ON CONFLICT (username) DO NOTHING;`,
+        [username, 'no_password_needed'] // Mot de passe fictif car non utilisé dans cette version
     );
-    res.status(200).json({ message: 'Données sauvegardées avec succès.' });
-  } catch (err) {
-    console.error('Erreur lors de la sauvegarde des données:', err);
-    res.status(500).json({ message: 'Erreur serveur lors de la sauvegarde des données.' });
-  }
-});
-  // Dans une vraie application, vous vérifieriez ici que 'username' correspond à l'utilisateur authentifié
-  // Pour l'instant, on se base sur le 'username' envoyé par le client.
-  try {
-    // INSERT ou UPDATE si l'utilisateur existe déjà
+
     await pool.query(
       `INSERT INTO user_data (username, personnes, equipes)
        VALUES ($1, $2, $3)
@@ -158,24 +148,21 @@ app.post('/api/saveData', async (req, res) => {
 });
 
 // API pour charger les données (personnes et équipes) d'un utilisateur
-// C'est cette route que votre frontend appellera pour charger
 app.get('/api/loadData/:username', async (req, res) => {
   const { username } = req.params;
   if (!username) {
     return res.status(400).json({ message: 'Nom d\'utilisateur requis.' });
   }
 
-  // Dans une vraie application, vous vérifieriez ici que 'username' correspond à l'utilisateur authentifié
   try {
     const result = await pool.query('SELECT personnes, equipes FROM user_data WHERE username = $1', [username]);
     if (result.rows.length > 0) {
       res.status(200).json({
-        personnes: result.rows[0].personnes || [], // Retourne un tableau vide si les données sont null
-        equipes: result.rows[0].equipes || []      // Retourne un tableau vide si les données sont null
+        personnes: result.rows[0].personnes || [],
+        equipes: result.rows[0].equipes || []
       });
     } else {
-      // Si l'utilisateur n'a pas encore de données (ex: vient de s'inscrire ou est un nouvel utilisateur_data)
-      res.status(200).json({ personnes: [], equipes: [] });
+      res.status(200).json({ personnes: [], equipes: [] }); // Pas de données pour cet utilisateur
     }
   } catch (err) {
     console.error('Erreur lors du chargement des données:', err);
