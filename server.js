@@ -115,7 +115,7 @@ app.post('/api/login', async (req, res) => {
 app.post('/api/saveData', async (req, res) => {
   const { username, personnes, equipes } = req.body;
 
-  // --- LIGNES DE VÉRIFICATION QUE NOUS AVONS AJOUTÉES POUR LE DÉBOGAGE ---
+  // --- LIGNES DE VÉRIFICATION QUE NOUS AVONS AJOUTÉES POUR LE DÉBOGAGE (laisser ou supprimer) ---
   console.log(`Backend a reçu username: ${username}`);
   console.log(`Backend a reçu personnes (type): ${typeof personnes}`);
   console.log('Backend a reçu personnes (valeur):', JSON.stringify(personnes, null, 2));
@@ -134,11 +134,17 @@ app.post('/api/saveData', async (req, res) => {
         [username, 'no_password_needed'] // Mot de passe fictif car non utilisé dans cette version
     );
 
+    // --- C'EST LA MODIFICATION CRUCIALE ICI ---
+    // Convertir explicitement les objets JavaScript en chaînes JSON pour PostgreSQL
+    const personnesJsonString = JSON.stringify(personnes);
+    const equipesJsonString = JSON.stringify(equipes);
+    // --- FIN DE LA MODIFICATION CRUCIALE ---
+
     await pool.query(
       `INSERT INTO user_data (username, personnes, equipes)
        VALUES ($1, $2, $3)
        ON CONFLICT (username) DO UPDATE SET personnes = $2, equipes = $3;`,
-      [username, personnes, equipes]
+      [username, personnesJsonString, equipesJsonString] // Passer les chaînes JSON ici
     );
     res.status(200).json({ message: 'Données sauvegardées avec succès.' });
   } catch (err) {
