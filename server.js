@@ -111,12 +111,35 @@ app.post('/api/login', async (req, res) => {
 
 // API pour sauvegarder les données (personnes et équipes) d'un utilisateur
 // C'est cette route que votre frontend appellera pour sauvegarder
+// ... (début de la route)
 app.post('/api/saveData', async (req, res) => {
   const { username, personnes, equipes } = req.body;
+
+  // --- AJOUTEZ CES LIGNES POUR VÉRIFIER CE QUE LE BACKEND REÇOIT ---
+  console.log('Backend a reçu username:', username);
+  console.log('Backend a reçu personnes (type):', typeof personnes);
+  console.log('Backend a reçu personnes (valeur):', JSON.stringify(personnes, null, 2)); // Stringify pour voir le contenu
+  console.log('Backend a reçu equipes (type):', typeof equipes);
+  console.log('Backend a reçu equipes (valeur):', JSON.stringify(equipes, null, 2)); // Stringify pour voir le contenu
+  // --- FIN DES LIGNES DE VÉRIFICATION ---
+
   if (!username || personnes === undefined || equipes === undefined) {
     return res.status(400).json({ message: 'Nom d\'utilisateur et données (personnes, equipes) requis.' });
   }
 
+  try {
+    await pool.query(
+      `INSERT INTO user_data (username, personnes, equipes)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (username) DO UPDATE SET personnes = $2, equipes = $3;`,
+      [username, personnes, equipes]
+    );
+    res.status(200).json({ message: 'Données sauvegardées avec succès.' });
+  } catch (err) {
+    console.error('Erreur lors de la sauvegarde des données:', err);
+    res.status(500).json({ message: 'Erreur serveur lors de la sauvegarde des données.' });
+  }
+});
   // Dans une vraie application, vous vérifieriez ici que 'username' correspond à l'utilisateur authentifié
   // Pour l'instant, on se base sur le 'username' envoyé par le client.
   try {
