@@ -12,7 +12,7 @@ const port = process.env.PORT || 3000; // Utilise le port défini dans .env ou 3
 // Par exemple: 'https://votre_pseudo.github.io/votre_repo/'
 // Pour les tests locaux, vous pouvez laisser 'http://localhost:8080' ou '*' (moins sécurisé)
 const corsOptions = {
-  origin: 'https://bfg-fw.github.io/tes/' // À modifier pour votre URL GitHub Pages déployée (e.g., 'https://bfg-fw.github.io/tes/')
+  origin: 'https://tes-1-w5nn.onrender.com' // À modifier pour votre URL GitHub Pages déployée (e.g., 'https://bfg-fw.github.io/tes/')
 };
 app.use(cors(corsOptions));
 
